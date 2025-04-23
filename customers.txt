@@ -1,0 +1,4 @@
+C, 01, Chloe, na , na, na
+M, 05, Ethan, 0.10, na, na
+C, 12, Mia, na, na, na
+G, 16, Noah, 0.12, 1.00, 10
