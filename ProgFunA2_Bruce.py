@@ -1,3 +1,6 @@
+import datetime  # Import the datetime module
+import sys  # Import the sys module for command-line arguments
+
 class Customer:
     def __init__(self, ID, name):
         self.ID = ID
@@ -199,6 +202,7 @@ class Records:
         self.book_categories = []  # List to store BookCategory objects
         self.books = []  # List to store Book objects
         self.book_series = []  # List to store BookSeries objects
+        self.rentals = []  # List to store rental records
 
     def read_customers(self, file_name):
         try:
@@ -352,19 +356,85 @@ class Operations:
     def __init__(self):
         self.records = None  # Initialize the records attribute as None
         self.load_data()  # Load data when the Operations object is created
-        self.display_menu()  # Display the menu after loading data
+        try:
+            self.display_menu()  # Display the menu after loading data
+        finally:
+            self.save_data()  # Save data when the program terminates
+
+    def save_data(self):
+        # Save customers to customers.txt
+        with open("customers.txt", "w") as file:
+            for customer in self.records.customers:
+                if isinstance(customer, GoldMember):
+                    file.write(f"G, {customer.get_ID()}, {customer.get_name()}, {customer.discount_rate}, {customer.get_reward_rate()}, {customer.get_reward()}\n")
+                elif isinstance(customer, Member):
+                    file.write(f"M, {customer.get_ID()}, {customer.get_name()}, {customer.discount_rate}, na, na\n")
+                else:
+                    file.write(f"C, {customer.get_ID()}, {customer.get_name()}, na, na, na\n")
+
+        # Save books to books.txt
+        with open("books.txt", "w") as file:
+            for book in self.records.books:
+                file.write(f"{book.get_ID()}, {book.get_name()}\n")
+            for series in self.records.book_series:
+                component_books = ", ".join([book.get_name() for book in series.get_component_books()])
+                file.write(f"{series.get_ID()}, {series.get_name()}, {component_books}\n")
+
+        # Save book categories to book_categories.txt
+        with open("book_categories.txt", "w") as file:
+            for category in self.records.book_categories:
+                books_in_category = ", ".join([book.get_name() for book in category.books])
+                file.write(f"{category.ID}, {category.name}, {category.category_type}, {category.price_1}, {category.price_2}, {books_in_category}\n")
+
+        # Save rentals to rentals.txt
+        with open("rentals.txt", "w") as file:
+            for rental in self.records.rentals:
+                customer = rental['customer']
+                rental_items = rental['items']
+                rental_time = rental['timestamp']
+                original_cost = rental['original_cost']
+                discount = rental['discount']
+                total_cost = rental['total_cost']
+                earned_rewards = rental.get('earned_rewards', "na")
+
+                rental_line = f"{customer.get_name()}, "
+                rental_line += ", ".join([f"{item.get_name()}, {borrowing_days}" for item, borrowing_days in rental_items])
+                rental_line += f", {original_cost:.2f}, {discount:.2f}, {total_cost:.2f}, {earned_rewards}, {rental_time}\n"
+                file.write(rental_line)
 
     def load_data(self):
+        # Default file names
+        default_customer_file = "customers.txt"
+        default_book_file = "books.txt"
+        default_book_category_file = "book_categories.txt"
+
+        # Check command-line arguments
+        if len(sys.argv) == 1:
+            # No arguments provided, use default file names
+            customer_file = default_customer_file
+            book_file = default_book_file
+            book_category_file = default_book_category_file
+        elif len(sys.argv) == 4:
+            # Three file names provided
+            customer_file = sys.argv[1]
+            book_file = sys.argv[2]
+            book_category_file = sys.argv[3]
+        else:
+            # Incorrect number of arguments
+            print("Usage: python ProgFunA2_Bruce.py <customer_file> <book_file> <book_category_file>")
+            print("If no arguments are provided, the program will use the default files:")
+            print(f"  Customers: {default_customer_file}")
+            print(f"  Books: {default_book_file}")
+            print(f"  Book Categories: {default_book_category_file}")
+            sys.exit(1)
+
         try:
             self.records = Records()  # Create a Records object and store it in the instance attribute
-            self.records.read_customers("customers.txt")
-            # self.records.list_customers()
-            self.records.read_books_and_book_categories("books.txt", "book_categories.txt")
-            # self.records.list_book_categories()
-            # self.records.list_books()
+            self.records.read_customers(customer_file)
+            self.records.read_books_and_book_categories(book_file, book_category_file)
         except FileNotFoundError as e:
             print(f"Error: {e}")
-            exit()
+            sys.exit(1)
 
     def display_menu(self):
         if not self.records:  # Check if records have been loaded
@@ -380,8 +450,12 @@ class Operations:
             print("5. Update information of a book category")
             print("6. Update books of a book category")
             print("7. Adjust the discount rate of all members")
-            print("8. Adjust the reward rate of a Gold member")  # New option
-            print("9. Exit")
+            print("8. Adjust the reward rate of a Gold member")
+            print("9. Rent books via a file")
+            print("10. Display all rentals")
+            print("11. Display the most valuable customer")
+            print("12. Display a customer rental history")  # New option
+            print("13. Exit")
             choice = input("Enter your choice: ")
 
             if choice == "1":
@@ -399,12 +473,21 @@ class Operations:
             elif choice == "7":
                 self.adjust_discount_rate()
             elif choice == "8":
-                self.adjust_reward_rate()  # Call the new method
+                self.adjust_reward_rate()
             elif choice == "9":
+                self.rent_books_via_file()
+            elif choice == "10":
+                self.display_all_rentals()
+            elif choice == "11":
+                self.display_most_valuable_customer()
+            elif choice == "12":
+                self.display_customer_rental_history()  # Call the new method
+            elif choice == "13":
                 print("Exiting the program. Goodbye!")
                 break
             else:
                 print("Invalid choice. Please try again.")
+
 
     def rent_book(self):
         is_new_customer = False  # Track if the customer is newly added
@@ -434,8 +517,8 @@ class Operations:
                 self.records.customers.append(customer)
                 print(f"Customer '{customer_name}' with ID '{customer_id}' has been added.")
                 is_new_customer = True  # Mark the customer as newly added
-                
             break
+
         # Confirm the customer name and ID
         print(f"Customer confirmed: {customer.get_name()} (ID: {customer.get_ID()})")
         rental_items = []  # List to store rental items (book/book series and borrowing days)
@@ -455,12 +538,7 @@ class Operations:
             if not book and not book_series:
                 print("Error: Book or book series not found. Please try again.")
                 continue
-            
-            # Confirm the selected book or book series
-            if book:
-                print(f"Selected Book: {book.get_name()} (ID: {book.get_ID()})")
-            elif book_series:
-                print(f"Selected Book Series: {book_series.get_name()} (ID: {book_series.get_ID()})")
+
             while True:
                 try:
                     borrowing_days = int(input(f"Enter number of borrowing days for '{book_input}': "))
@@ -474,12 +552,17 @@ class Operations:
                 except ValueError:
                     print("Error: Invalid input. Please enter a positive integer.")
 
+        # Generate the timestamp for the rental
+        rental_timestamp = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        print(f"Rental timestamp: {rental_timestamp}")
+
         # Calculate and display the receipt
         total_cost = 0
         total_discount = 0
         total_reward_points = 0  # Track total reward points for GoldMember customers
         print("\n------------------------------------------------------------------------------------------")
         print(f"Receipt for {customer.get_name()}")
+        print(f"Rental Timestamp: {rental_timestamp}")  # Include the timestamp in the receipt
         print("------------------------------------------------------------------------------------------")
 
         for item, borrowing_days in rental_items:
@@ -552,6 +635,18 @@ class Operations:
             customer.update_reward(total_reward_points)  # Add earned reward points after deduction
             print(f"Updated reward points: {customer.get_reward()}")
         print("------------------------------------------------------------------------------------------")
+
+        # Store rental record
+        rental_record = {
+            'customer': customer,
+            'items': rental_items,
+            'timestamp': rental_timestamp,
+            'original_cost': total_cost + total_discount,
+            'discount': total_discount,
+            'total_cost': total_cost,
+            'earned_rewards': total_reward_points if isinstance(customer, GoldMember) else "na"
+        }
+        self.records.rentals.append(rental_record)
 
         # Prompt if the customer would like to become a member (only for new customers)
         if is_new_customer:
@@ -739,6 +834,162 @@ class Operations:
                 except ValueError as e:
                     print(f"Error: {e}. Please enter a valid positive number.")
 
+    def rent_books_via_file(self):
+        file_name = input("Enter the name of the rental file: ")
+
+        try:
+            with open(file_name, 'r') as file:
+                for line in file:
+                    data = line.strip().split(', ')
+                    customer_input = data[0]
+                    customer = self.records.find_customer_by_id_or_name(customer_input)
+
+                    if not customer:
+                        print(f"Error: Customer '{customer_input}' not found. Skipping this rental.")
+                        continue
+
+                    rental_items = []
+                    index = 1
+                    while index < len(data) - 5:  # Process books and borrowing days
+                        book_input = data[index]
+                        borrowing_days = int(data[index + 1])
+                        book = self.records.find_book_by_id_or_name(book_input) or self.records.find_book_series_by_id_or_name(book_input)
+
+                        if not book:
+                            print(f"Error: Book or book series '{book_input}' not found. Skipping this rental item.")
+                            index += 2
+                            continue
+
+                        rental_items.append((book, borrowing_days))
+                        index += 2
+
+                    # Extract rental summary details
+                    original_cost = float(data[index])
+                    discount = float(data[index + 1])
+                    total_cost = float(data[index + 2])
+                    earned_rewards = data[index + 3]
+                    rental_date = data[index + 4]
+
+                    # Update reward points for Gold members
+                    if isinstance(customer, GoldMember) and earned_rewards != "na":
+                        customer.update_reward(int(earned_rewards))
+
+                    # Record the rental in the Records object
+                    rental_record = {
+                        'customer': customer,
+                        'items': rental_items,
+                        'timestamp': rental_date,
+                        'original_cost': original_cost,
+                        'discount': discount,
+                        'total_cost': total_cost,
+                        'earned_rewards': int(earned_rewards) if earned_rewards != "na" else "na"
+                    }
+                    self.records.rentals.append(rental_record)
+
+                    # Print rental summary
+                    print("\n------------------------------------------------------------------------------------------")
+                    print(f"Rental Summary for {customer.get_name()} (ID: {customer.get_ID()})")
+                    print(f"Rental Date: {rental_date}")
+                    print("------------------------------------------------------------------------------------------")
+                    for book, borrowing_days in rental_items:
+                        print(f"Book/Series: {book.get_name()} (ID: {book.get_ID()}), Borrowing Days: {borrowing_days}")
+                    print(f"Original Cost: ${original_cost:.2f}")
+                    print(f"Discount: ${discount:.2f}")
+                    print(f"Total Cost: ${total_cost:.2f}")
+                    if isinstance(customer, GoldMember):
+                        print(f"Earned Reward Points: {earned_rewards}")
+                    print("------------------------------------------------------------------------------------------")
+
+        except FileNotFoundError:
+            print("Cannot find the rental file.")
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def display_all_rentals(self):
+        if not hasattr(self.records, 'rentals') or not self.records.rentals:
+            print("No rental records found.")
+            return
+
+        print("\nAll Rentals:")
+        print("------------------------------------------------------------------------------------------")
+        for rental in self.records.rentals:
+            customer = rental['customer']
+            rental_items = rental['items']
+            rental_time = rental['timestamp']
+            original_cost = rental['original_cost']
+            discount = rental['discount']
+            total_cost = rental['total_cost']
+            earned_rewards = rental.get('earned_rewards', "na")
+
+            print(f"Customer: {customer.get_name()} (ID: {customer.get_ID()})")
+            print(f"Rental Time: {rental_time}")
+            print("Books/Book Series Rented:")
+            for item, borrowing_days in rental_items:
+                print(f"  - {item.get_name()} (ID: {item.get_ID()}), Borrowing Days: {borrowing_days}")
+            print(f"Original Cost: ${original_cost:.2f}")
+            print(f"Discount: ${discount:.2f}")
+            print(f"Total Cost: ${total_cost:.2f}")
+            if isinstance(customer, GoldMember):
+                print(f"Earned Rewards: {earned_rewards}")
+            print("------------------------------------------------------------------------------------------")
+
+    def display_most_valuable_customer(self):
+        if not hasattr(self.records, 'rentals') or not self.records.rentals:
+            print("No rental records found.")
+            return
+
+        # Calculate total money spent by each customer
+        customer_spending = {}
+        for rental in self.records.rentals:
+            customer = rental['customer']
+            total_cost = rental['total_cost']
+            if customer in customer_spending:
+                customer_spending[customer] += total_cost
+            else:
+                customer_spending[customer] = total_cost
+
+        # Find the maximum money spent
+        max_spent = max(customer_spending.values())
+        most_valuable_customers = [customer for customer, spent in customer_spending.items() if spent == max_spent]
+
+        # Display the most valuable customer(s)
+        print("\nMost Valuable Customer(s):")
+        print("------------------------------------------------------------------------------------------")
+        for customer in most_valuable_customers:
+            print(f"Customer: {customer.get_name()} (ID: {customer.get_ID()})")
+            print(f"Total Money Spent: ${customer_spending[customer]:.2f}")
+            print("------------------------------------------------------------------------------------------")
+
+    def display_customer_rental_history(self):
+        customer_input = input("Enter the ID or name of the customer: ")
+        customer = self.records.find_customer_by_id_or_name(customer_input)
+
+        if not customer:
+            print(f"Error: Customer '{customer_input}' not found.")
+            return
+
+        # Filter rentals for the specific customer
+        customer_rentals = [rental for rental in self.records.rentals if rental['customer'] == customer]
+
+        if not customer_rentals:
+            print(f"No rental history found for customer '{customer.get_name()}' (ID: {customer.get_ID()}).")
+            return
+
+        # Display rental history in a tabular format
+        print(f"\nRental History for {customer.get_name()} (ID: {customer.get_ID()}):")
+        print("------------------------------------------------------------------------------------------")
+        print(f"{'Rental':<10} {'Books & Borrowing Days':<50} {'Original Cost':<15} {'Discount':<10} {'Final Cost':<10} {'Rewards':<10}")
+        print("------------------------------------------------------------------------------------------")
+
+        for i, rental in enumerate(customer_rentals, start=1):
+            books_and_days = ", ".join([f"{item.get_name()}: {borrowing_days} days" for item, borrowing_days in rental['items']])
+            original_cost = rental['original_cost']
+            discount = rental['discount']
+            final_cost = rental['total_cost']
+            rewards = rental.get('earned_rewards', "na")
+
+            print(f"{f'Rental {i}':<10} {books_and_days:<50} {original_cost:<15.2f} {discount:<10.2f} {final_cost:<10.2f} {rewards:<10}")
+        print("------------------------------------------------------------------------------------------")
 
 
 # Call the main function

@@ -1,7 +1,9 @@
-C, 01, Chloe, na , na, na
-M, 05, Ethan, 0.10, na, na
+C, 01, Chloe, na, na, na
+M, 05, Ethan, 0.1, na, na
 C, 12, Mia, na, na, na
-G, 16, Noah, 0.12, 1.00, 10
-M, 22, Olivia, 0.10, na, na
-G, 30, Lucas, 0.12, 1.20, 25
+G, 16, Noah, 0.12, 1.0, 16
+M, 22, Olivia, 0.1, na, na
+G, 30, Lucas, 0.12, 1.2, 25
 C, 36, Grace, na, na, na
+M, 02, Bruce, 0.1, na, na
+C, 03, Mason, na, na, na
